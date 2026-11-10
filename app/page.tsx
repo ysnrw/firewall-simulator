@@ -6,10 +6,16 @@ import { ShieldAlert, Globe, Server, Database, Monitor, Play, Trash2, Plus, File
 import { FirewallRule, SimulationLog, ActionType, NetworkZone } from '@/types/firewall';
 import { exportSimulationPDF } from '@/utils/exportPdf';
 
+// Komponen Ikon GitHub (Inline SVG)
+const GithubIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+  </svg>
+);
+
 const PORT_OPTIONS = ['ANY', '80', '443', '22', '3306', '5432'];
 const IP_OPTIONS = ['ANY', '192.168.1.10', '203.0.113.5', '198.51.100.22', '10.0.0.1'];
 
-// Fungsi Hierarki: Zone 3 bisa ke 1,2,3. Zone 2 ke 1,2. Zone 1 hanya 1.
 const hierarchyAccess: Record<NetworkZone, NetworkZone[]> = {
   'ZONE_3': ['ZONE_1', 'ZONE_2', 'ZONE_3'],
   'ZONE_2': ['ZONE_1', 'ZONE_2'],
@@ -21,22 +27,19 @@ export default function FirewallSimulator() {
   const [rules, setRules] = useState<FirewallRule[]>([
     { id: '1', action: 'ALLOW', destination: 'ZONE_1', port: 80, sourceIp: 'ANY' },
     { id: '2', action: 'ALLOW', destination: 'ZONE_2', port: 'ANY', sourceIp: '192.168.1.10' },
-    { id: '3', action: 'ALLOW', destination: 'ZONE_3', port: 'ANY', sourceIp: '10.0.0.1' }, // Super Admin
+    { id: '3', action: 'ALLOW', destination: 'ZONE_3', port: 'ANY', sourceIp: '10.0.0.1' },
   ]);
   
   const [bannedIps, setBannedIps] = useState<string[]>(['198.51.100.22']);
   const [newBannedIp, setNewBannedIp] = useState('172.16.0.5');
 
   const [logs, setLogs] = useState<SimulationLog[]>([]);
-  
-  // State Pengujian: Dropdown "Test To" dihilangkan
   const [testPacket, setTestPacket] = useState<{port: number, sourceIp: string}>({ port: 80, sourceIp: '203.0.113.5' });
   
   const [newRule, setNewRule] = useState<{action: ActionType, destination: NetworkZone, port: string, sourceIp: string}>({
     action: 'ALLOW', destination: 'ZONE_2', port: 'ANY', sourceIp: 'ANY'
   });
 
-  // 4 Ref untuk animasi Broadcast (1 Utama, 3 Cabang)
   const packetRefMain = useRef<HTMLDivElement>(null);
   const packetRefZ1 = useRef<HTMLDivElement>(null);
   const packetRefZ2 = useRef<HTMLDivElement>(null);
@@ -44,7 +47,6 @@ export default function FirewallSimulator() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSimulating, setIsSimulating] = useState(false);
 
-  // Evaluasi diubah menerima targetZone spesifik
   const evaluatePacket = (packet: {port: number, sourceIp: string}, targetZone: NetworkZone): { allowed: boolean, reason: string } => {
     if (bannedIps.includes(packet.sourceIp)) return { allowed: false, reason: 'IP_BANNED' };
 
@@ -81,12 +83,10 @@ export default function FirewallSimulator() {
     const firewallPoint = (containerWidth / 2) - 30;
     const serverPoint = containerWidth - 90;
 
-    // Evaluasi ke semua zona
     const resZ1 = evaluatePacket(testPacket, 'ZONE_1');
     const resZ2 = evaluatePacket(testPacket, 'ZONE_2');
     const resZ3 = evaluatePacket(testPacket, 'ZONE_3');
 
-    // Reset posisi semua paket
     const allPackets = [packetRefMain.current, packetRefZ1.current, packetRefZ2.current, packetRefZ3.current];
     gsap.killTweensOf(allPackets);
     
@@ -97,15 +97,12 @@ export default function FirewallSimulator() {
 
     const tl = gsap.timeline({ onComplete: () => setIsSimulating(false) });
 
-    // 1. Paket utama meluncur ke Firewall
     tl.to(packetRefMain.current, { x: firewallPoint, duration: 0.8, ease: "power2.inOut" })
-      .set(packetRefMain.current, { opacity: 0 }); // Sembunyikan paket utama
+      .set(packetRefMain.current, { opacity: 0 });
 
-    // 2. Tampilkan 3 paket cabang di Firewall (Titik split)
     tl.addLabel("split");
     tl.set([packetRefZ1.current, packetRefZ2.current, packetRefZ3.current], { opacity: 1 }, "split");
 
-    // Helper untuk menganimasikan tiap cabang dengan tipe data eksplisit
     const animateBranch = (
       ref: HTMLDivElement | null, 
       targetZone: NetworkZone, 
@@ -133,7 +130,6 @@ export default function FirewallSimulator() {
       }
     };
 
-    // Jalankan animasi secara serentak ke 3 zona
     animateBranch(packetRefZ1.current, 'ZONE_1', -90, resZ1);
     animateBranch(packetRefZ2.current, 'ZONE_2', 0, resZ2);
     animateBranch(packetRefZ3.current, 'ZONE_3', 90, resZ3);
@@ -147,9 +143,19 @@ export default function FirewallSimulator() {
         <h1 className="text-3xl font-bold text-cyan-400 flex items-center gap-3">
           <Network className="w-8 h-8" /> Hierarchical Firewall Simulator
         </h1>
-        <button onClick={() => exportSimulationPDF(rules, logs, bannedIps)} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors border border-slate-700 text-sm font-semibold shadow-lg">
-          <FileDown className="w-4 h-4" /> Ekspor (PDF)
-        </button>
+        <div className="flex items-center gap-3">
+          <a
+            href="https://github.com/ysnrw/firewall-simulator"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors border border-slate-700 text-sm font-semibold shadow-lg"
+          >
+            <GithubIcon className="w-4 h-4" /> GitHub Repo
+          </a>
+          <button onClick={() => exportSimulationPDF(rules, logs, bannedIps)} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors border border-slate-700 text-sm font-semibold shadow-lg">
+            <FileDown className="w-4 h-4" /> Ekspor (PDF)
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -206,11 +212,10 @@ export default function FirewallSimulator() {
           </div>
         </div>
 
-        {/* PANEL TENGAH & KANAN: Visualisasi Animasi Parabola */}
+        {/* PANEL TENGAH & KANAN */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-slate-900 border border-slate-800 p-8 rounded-xl shadow-lg relative h-[420px] flex flex-col justify-center overflow-hidden">
             
-            {/* Background Jalur Cybersecurity (Estetika) */}
             <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" preserveAspectRatio="none">
               <path d="M 150 210 Q 300 50, 450 120" stroke="#06b6d4" strokeWidth="2" fill="transparent" strokeDasharray="5,5" />
               <path d="M 150 210 Q 300 210, 450 210" stroke="#06b6d4" strokeWidth="2" fill="transparent" strokeDasharray="5,5" />
@@ -219,13 +224,11 @@ export default function FirewallSimulator() {
 
             <div ref={containerRef} className="flex justify-between items-center relative w-full px-4 z-10 h-full">
               
-              {/* Klien */}
               <div className="flex flex-col items-center">
                 <div className="w-14 h-14 bg-slate-800 rounded-full border-2 border-slate-600 flex items-center justify-center relative z-20"><Monitor className="w-6 h-6 text-slate-300" /></div>
                 <span className="mt-2 text-xs font-mono text-slate-400">Public Klien</span>
               </div>
               
-              {/* Firewall Gate Utama */}
               <div className="flex flex-col items-center">
                 <div className="w-12 h-[350px] bg-slate-800 border-x-2 border-cyan-500/80 shadow-[0_0_40px_rgba(8,145,178,0.3)] flex items-center justify-center relative overflow-hidden z-20 rounded-sm">
                    <div className="absolute inset-0 bg-[linear-gradient(transparent_48%,rgba(6,182,212,0.4)_50%,transparent_52%)] bg-[length:100%_8px] animate-pulse"></div>
@@ -234,7 +237,6 @@ export default function FirewallSimulator() {
                 <span className="mt-2 text-xs font-mono text-cyan-400 font-bold">Main Firewall</span>
               </div>
               
-              {/* Hierarki Server Zones */}
               <div className="flex flex-col justify-between h-full py-2 relative w-32 z-20">
                 <div className="flex flex-col items-center">
                   <div className="w-16 h-16 bg-slate-800 rounded-lg border-2 border-blue-500 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.3)] bg-gradient-to-br from-slate-800 to-blue-900/40"><Globe className="w-7 h-7 text-blue-400" /></div>
@@ -250,14 +252,12 @@ export default function FirewallSimulator() {
                 </div>
               </div>
               
-              {/* Paket Animasi (1 Utama, 3 Cabang) */}
               <div ref={packetRefMain} className="absolute left-8 w-5 h-5 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,1)] opacity-0 z-30 flex items-center justify-center" style={{ top: '50%', transform: 'translateY(-50%)' }}><div className="w-2 h-2 bg-white rounded-full animate-ping"></div></div>
               <div ref={packetRefZ1} className="absolute left-8 w-4 h-4 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,1)] opacity-0 z-30" style={{ top: '50%', transform: 'translateY(-50%)' }}></div>
               <div ref={packetRefZ2} className="absolute left-8 w-4 h-4 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,1)] opacity-0 z-30" style={{ top: '50%', transform: 'translateY(-50%)' }}></div>
               <div ref={packetRefZ3} className="absolute left-8 w-4 h-4 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,1)] opacity-0 z-30" style={{ top: '50%', transform: 'translateY(-50%)' }}></div>
             </div>
 
-            {/* Kontrol Broadcast */}
             <div className="absolute bottom-4 left-0 right-0 flex justify-center z-40">
                <div className="flex items-center gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800 shadow-2xl">
                   
